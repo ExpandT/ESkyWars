@@ -1,0 +1,23 @@
+name: ESkyWars
+version: '1.0'
+main: org.expandt.eskywars.ESkyWars
+api-version: '1.16'
+commands:
+  createarena:
+    description: "Create a new arena"
+    usage: "/createarena <name>"
+  removearena:
+    description: "Remove an existing arena"
+    usage: "/removearena <name>"
+  joinarena:
+    description: "Joins selected arena"
+    usage: "/joinarena <name>"
+  leavearena:
+    description: "Leave selected arena"
+    usage: "/leavearena <name>"
+  setarenalobby:
+    description: "Set's arena lobby"
+    usage: "/setarenalobby <name>"
+  restartarena:
+    description: "Restart arena"
+    usage: "/restartarena <name>"

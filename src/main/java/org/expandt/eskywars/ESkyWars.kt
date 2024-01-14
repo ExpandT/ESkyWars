@@ -1,10 +1,10 @@
 package org.expandt.eskywars
 
-import org.bukkit.command.Command
-import org.bukkit.command.CommandSender
+import app.ashcon.intake.bukkit.BukkitIntake
+import app.ashcon.intake.bukkit.graph.BasicBukkitCommandGraph
 import org.bukkit.plugin.java.JavaPlugin
 import org.expandt.eskywars.arena.ArenaManager
-import org.expandt.eskywars.commands.CommandHandler
+import org.expandt.eskywars.commands.*
 import org.expandt.eskywars.listeners.ArenaSetup
 import java.io.File
 import java.io.IOException
@@ -16,19 +16,17 @@ class ESkyWars: JavaPlugin() {
     }
 
     private val arenaManager = ArenaManager(this)
-    private val commandHandler = CommandHandler(arenaManager)
-
     override fun onEnable() {
         INSTANCE = this
         logger.info("Enabling ESkyWars!")
 
+        config.options().copyDefaults(true)
+        saveConfig()
+
         arenaManager.loadArenas()
 
-        if (!config.contains("chest_items")) {
-            createDefaultChestItemsConfig()
-        }
-
         createNeededFiles()
+        registerCommands()
         registerEvents()
     }
 
@@ -36,13 +34,19 @@ class ESkyWars: JavaPlugin() {
         logger.info("Disabling ESkyWars!")
     }
 
-    override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
-        return commandHandler.handleCommand(sender, command, label, args)
-    }
-
-
     private fun registerEvents() {
         server.pluginManager.registerEvents(ArenaSetup(arenaManager), this)
+    }
+
+    private fun registerCommands() {
+        val cmdGraph = BasicBukkitCommandGraph()
+        cmdGraph.rootDispatcherNode.registerCommands(CreateArenaCommand(arenaManager))
+        cmdGraph.rootDispatcherNode.registerCommands(RemoveArenaCommand(arenaManager))
+        cmdGraph.rootDispatcherNode.registerCommands(RestartArenaCommand(arenaManager))
+        cmdGraph.rootDispatcherNode.registerCommands(JoinArenaCommand(arenaManager))
+        cmdGraph.rootDispatcherNode.registerCommands(LeaveArenaCommand(arenaManager))
+        cmdGraph.rootDispatcherNode.registerCommands(SetArenaLobbyCommand(arenaManager))
+        BukkitIntake(this, cmdGraph).register()
     }
 
     private fun createNeededFiles() {
@@ -53,21 +57,6 @@ class ESkyWars: JavaPlugin() {
                 arenasFile.createNewFile()
             }
         } catch (e: IOException) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun createDefaultChestItemsConfig() {
-        val configSection = config.createSection("chest_items")
-
-        configSection.set("weapons", mapOf("DIAMOND_SWORD" to 1, "IRON_SWORD" to 1, "BOW" to 1))
-        configSection.set("blocks", mapOf("DIAMOND_BLOCK" to 16, "IRON_BLOCK" to 16, "BOOKSHELF" to 16))
-        configSection.set("food", mapOf("APPLE" to 16, "BREAD" to 16, "COOKED_BEEF" to 16))
-        configSection.set("other", mapOf("DIAMOND" to 8, "GOLD_INGOT" to 8, "REDSTONE" to 8))
-
-        try {
-            saveConfig()
-        } catch (e: Exception) {
             e.printStackTrace()
         }
     }

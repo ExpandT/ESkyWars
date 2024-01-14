@@ -28,6 +28,9 @@ tasks {
 
 
 repositories {
+    flatDir {
+        dirs("libs")
+    }
     mavenCentral()
     maven {
         name = "papermc-repo"
@@ -48,6 +51,8 @@ dependencies {
     implementation(kotlin("stdlib-jdk8"))
     implementation(kotlin("reflect"))
     implementation ("com.google.code.gson:gson:2.10.1")
+    implementation("org.expandt.eskywars.intake:intake-core:1.2-SNAPSHOT")
+    implementation("org.expandt.eskywars.intake:intake-bukkit:1.2-SNAPSHOT")
     compileOnly("net.luckperms:api:5.4")
     compileOnly("com.comphenix.protocol:ProtocolLib:5.1.0")
 }

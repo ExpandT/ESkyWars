@@ -1,0 +1,17 @@
+chest_items:
+  weapons:
+    DIAMOND_SWORD: 1
+    IRON_SWORD: 1
+    BOW: 1
+  blocks:
+    DIAMOND_BLOCK: 16
+    IRON_BLOCK: 16
+    BOOKSHELF: 16
+  food:
+    APPLE: 16
+    BREAD: 16
+    COOKED_BEEF: 16
+  other:
+    DIAMOND: 8
+    GOLD_INGOT: 8
+    REDSTONE: 8

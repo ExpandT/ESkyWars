@@ -51,8 +51,8 @@ class ArenaManager(private val plugin: JavaPlugin) {
         arenaList[name]?.leaveArena(player)
     }
 
-    fun setArenaLobby(name: String, location: Location, player: Player) {
-        arenaList[name]?.lobby = location
+    fun setArenaLobby(name: String, player: Player) {
+        arenaList[name]?.lobby = player.location
         saveArenas()
 
         player.sendMessage("${ChatColor.GRAY}Лобби для Арены -${ChatColor.RED} $name ${ChatColor.GRAY}установлено!")

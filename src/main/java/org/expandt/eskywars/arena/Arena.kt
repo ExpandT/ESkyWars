@@ -1,15 +1,22 @@
 package org.expandt.eskywars.arena
 
+import com.comphenix.packetwrapper.WrapperPlayServerScoreboardScore
+import com.comphenix.protocol.wrappers.EnumWrappers
 import com.google.gson.annotations.Expose
 import org.bukkit.*
-import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
+import org.bukkit.block.BlockState
 import org.bukkit.block.Chest
+import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
+import org.bukkit.inventory.ItemStack
 import org.bukkit.metadata.FixedMetadataValue
+import org.bukkit.persistence.PersistentDataType
 import org.bukkit.scheduler.BukkitRunnable
 import org.bukkit.scoreboard.DisplaySlot
 import org.expandt.eskywars.ESkyWars
+import org.expandt.eskywars.kit.KitManager
+import java.io.File
 
 
 class Arena (
@@ -19,8 +26,10 @@ class Arena (
     @Expose val timeToStart: Int = 5,
     @Expose val minPlayersToStart: Int = 2,
     @Expose var lobby: Location?,
-    @Expose private val arenaBlocks: MutableList<Block> = mutableListOf(),
+    @Expose var placedBlocks: ArrayList<BlockState> = ArrayList(),
+    @Expose var brokenBlocks: ArrayList<BlockState> = ArrayList(),
     @Expose private val players: MutableList<Player> = ArrayList(),
+    @Expose private val spectators: MutableList<Player> = ArrayList(),
     @Expose private var emeraldBlocks: MutableList<Location> = mutableListOf(),
     @Expose private var chestList: MutableList<Location> = mutableListOf(),
 ) {
@@ -29,6 +38,7 @@ class Arena (
         validateCorners()
         populateBlocksBetweenCorners()
         chestList = findBlocksInCube(corner1!!, corner2!!, Material.CHEST)
+        emeraldBlocks = findBlocksInCube(corner1, corner2, Material.EMERALD_BLOCK)
     }
 
     fun joinArena(player: Player) {
@@ -46,6 +56,7 @@ class Arena (
     }
 
     fun leaveArena(player: Player) {
+        player.removeMetadata("kit", ESkyWars.INSTANCE)
         players.remove(player)
         sendArenaMessage("${ChatColor.RED}${player.name} ${ChatColor.GRAY} вышел!")
         player.scoreboard.clearSlot(DisplaySlot.SIDEBAR)
@@ -72,16 +83,31 @@ class Arena (
     fun teleportPlayers() {
         for ((index, player) in players.withIndex()) {
             val teleportLocation = emeraldBlocks[index].clone().add(0.5, 1.5, 0.5)
+            val kitSelectorItem = ItemStack(Material.BOW)
+            val kitSelectorMeta = kitSelectorItem.itemMeta
+            kitSelectorMeta.persistentDataContainer.set(NamespacedKey(ESkyWars.INSTANCE, "kit_selector"), PersistentDataType.STRING, "selector")
+            kitSelectorMeta.setDisplayName("${ChatColor.RED}Выбор класса")
+
+            kitSelectorItem.itemMeta = kitSelectorMeta
+
+            player.inventory.addItem(kitSelectorItem)
+            player.health = 20.0
+            player.foodLevel = 20
             player.teleport(teleportLocation)
         }
     }
 
     fun startPreparation() {
-        createGlassCageAroundEmerald(corner1!!, corner2!!)
+        createGlassCageAroundEmerald()
         changePlayersGamemode(GameMode.ADVENTURE)
         generateChestLoot()
-        setGameScoreboard()
         teleportPlayers()
+
+        object : BukkitRunnable() {
+            override fun run() {
+                setGameScoreboard()
+            }
+        }.runTaskTimer(ESkyWars.INSTANCE, 0, 20L)
 
         var ctr = timeToStart
 
@@ -110,6 +136,7 @@ class Arena (
 
     fun startGame() {
         removeCages()
+        applyPlayerKits()
         changePlayersGamemode(GameMode.SURVIVAL)
         sendArenaTitle("${ChatColor.GRAY} Игра началась!", "${ChatColor.RED}Сражайтесь с другими игрокми!")
     }
@@ -122,6 +149,7 @@ class Arena (
         player.gameMode = GameMode.SPECTATOR
         sendArenaMessage("${ChatColor.GRAY}Игрок ${ChatColor.RED}${player.name} умер!")
         players.remove(player)
+        spectators.add(player)
 
         if (players.size == 1) {
             endGame()
@@ -129,14 +157,21 @@ class Arena (
     }
 
     fun restartArena() {
-        arenaBlocks.forEach {
-            val blockLocation = it.location
-            val world = blockLocation.world
-            val x = blockLocation.blockX
-            val y = blockLocation.blockY
-            val z = blockLocation.blockZ
-            world.getBlockAt(x, y, z).type = it.type
+        for (state in brokenBlocks) {
+            state.update(true, false)
         }
+
+        for (state in placedBlocks) {
+
+            state.block.type = Material.AIR
+        }
+
+        for (emeraldBlock in emeraldBlocks) {
+            emeraldBlock.block.type = Material.EMERALD_BLOCK
+        }
+
+        brokenBlocks.clear()
+        placedBlocks.clear()
     }
 
     fun generateChestLoot() {
@@ -153,15 +188,75 @@ class Arena (
         }
     }
 
+    fun isInsideArena(location: Location): Boolean {
+        val minX = Math.min(corner1?.blockX!!, corner2?.blockX!!)
+        val minY = Math.min(corner1.blockY, corner2.blockY)
+        val minZ = Math.min(corner1.blockZ, corner2.blockZ)
+        val maxX = Math.max(corner1.blockX, corner2.blockX)
+        val maxY = Math.max(corner1.blockY, corner2.blockY)
+        val maxZ = Math.max(corner1.blockZ, corner2.blockZ)
+
+        return (location.blockX in minX..maxX) &&
+                (location.blockY in minY..maxY) &&
+                (location.blockZ in minZ..maxZ)
+    }
+
+    private fun applyPlayerKits() {
+        val kitManager = KitManager()
+
+        players.forEach {
+            it.inventory.clear()
+
+            if(it.hasMetadata("kit")) {
+                val kitName = it.getMetadata("kit")[0].value() as String
+
+                kitManager.applyKit(it, kitName)
+            }
+        }
+    }
+
     private fun endGame() {
+        val configFile = File(ESkyWars.INSTANCE.dataFolder, "config.yml")
+        val config = YamlConfiguration.loadConfiguration(configFile)
+        val mainLobbyLocation = config.get("main-lobby") as Location
+
         val winner = players.first()
 
-        winner.gameMode = GameMode.ADVENTURE
+        winner.gameMode = GameMode.SURVIVAL
+        winner.health = 20.0
+        winner.foodLevel = 20
         sendArenaMessage("${ChatColor.GRAY}Игрок ${ChatColor.RED}${winner.name} победил!")
-        for (player in players) {
-            player.scoreboard.clearSlot(DisplaySlot.SIDEBAR)
-            player.teleport(lobby!!)
-        }
+
+
+        var ctr = 5
+
+        object : BukkitRunnable() {
+            override fun run() {
+                ctr--
+
+                if (ctr < 0) {
+
+                    winner.scoreboard.clearSlot(DisplaySlot.SIDEBAR)
+                    winner.teleport(mainLobbyLocation)
+                    winner.removeMetadata("kit", ESkyWars.INSTANCE)
+
+                    for (player in spectators) {
+                        player.removeMetadata("kit", ESkyWars.INSTANCE)
+                        player.gameMode = GameMode.SURVIVAL
+                        player.health = 20.0
+                        player.foodLevel = 20
+                        player.scoreboard.clearSlot(DisplaySlot.SIDEBAR)
+                        player.teleport(mainLobbyLocation)
+                    }
+
+                    spectators.clear()
+                    players.clear()
+
+                    cancel()
+                }
+            }
+        }.runTaskTimer(ESkyWars.INSTANCE, 0L, 20L)
+
     }
 
     private fun setGameScoreboard() {
@@ -170,23 +265,35 @@ class Arena (
         objective.displaySlot = DisplaySlot.SIDEBAR
         objective.displayName = "${ChatColor.RED}${ChatColor.BOLD}ESkyWars"
 
-        val arenaScore = objective.getScore("${ChatColor.GRAY}АРЕНА - ${ChatColor.RED}${name}")
-        arenaScore.score = 4
-
-        val emptyLine1Score = objective.getScore(" ")
-        emptyLine1Score.score = 3
-
-        val playersCountScore = objective.getScore("${ChatColor.GRAY}Игроков: ${ChatColor.RED}${players.size}/${emeraldBlocks.size}")
-        playersCountScore.score = 2
-
-        val emptyLine2Score = objective.getScore(" ")
-        emptyLine2Score.score = 1
+        val lines = mutableListOf(
+            "",
+            "${ChatColor.GRAY}Игроков: ${ChatColor.RED}${players.size}/${emeraldBlocks.size}",
+            "",
+            "${ChatColor.GRAY}Арена - ${ChatColor.RED}$name",
+            ""
+        )
 
         for (player in players) {
-            player.scoreboard = scoreboard
+            if (player.scoreboard != scoreboard) {
+                player.scoreboard = scoreboard
+            }
+
+            for ((index, line) in lines.withIndex()) {
+                sendScoreBoardPacket(player, line, index)
+            }
+
         }
     }
 
+    private fun sendScoreBoardPacket(player: Player, line: String, index: Int) {
+        val packet = WrapperPlayServerScoreboardScore()
+        packet.objectiveName = "Sw"
+        packet.setScoreboardAction(EnumWrappers.ScoreboardAction.CHANGE)
+        packet.value = index
+        packet.scoreName = line
+
+        packet.sendPacket(player)
+    }
     private fun startTimer() {
         var ctr = timeToStart
 
@@ -238,9 +345,7 @@ class Arena (
         }
     }
 
-    private fun createGlassCageAroundEmerald(location1: Location, location2: Location) {
-        emeraldBlocks = findBlocksInCube(location1, location2, Material.EMERALD_BLOCK)
-
+    private fun createGlassCageAroundEmerald() {
         for (emeraldBlockLocation in emeraldBlocks) {
             createGlassCage(emeraldBlockLocation)
         }
@@ -312,7 +417,7 @@ class Arena (
                     for (z in minZ..maxZ) {
                         val blockLocation = Location(world, x.toDouble(), y.toDouble(), z.toDouble())
                         val block = blockLocation.block
-                        arenaBlocks.add(block)
+//                        arenaBlocks.add(block)
                     }
                 }
             }

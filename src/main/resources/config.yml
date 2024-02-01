@@ -15,3 +15,25 @@ chest_items:
     DIAMOND: 8
     GOLD_INGOT: 8
     REDSTONE: 8
+
+trails:
+  fire_trail:
+    name: "Testovskiy"
+    material: BLAZE_POWDER
+    particle: VILLAGER_ANGRY
+  water_trail:
+    name: "Testovskiy2"
+    material: BLAZE_POWDER
+    particle: CRIT_MAGIC
+
+kits:
+  assassin:
+    name: "Асассин"
+    icon: WOODEN_SWORD
+    items:
+      WOODEN_SWORD:
+        quantity: 1
+        enchantment: DAMAGE_ALL
+        enchantment_level: 2
+
+

@@ -16,4 +16,6 @@ class JoinArenaCommand(private val arenaManager: ArenaManager) {
         arenaManager.joinArena(arenaName, player as Player)
     }
 
+
+
 }

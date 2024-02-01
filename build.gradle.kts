@@ -22,10 +22,9 @@ tasks {
     withType<ShadowJar> {
         archiveClassifier.set("")
         exclude("META-INF/**")
+        destinationDirectory.set(file("${System.getProperty("user.home")}/Desktop/Server Test/plugins"))
     }
 }
-
-
 
 repositories {
     flatDir {
@@ -36,6 +35,7 @@ repositories {
         name = "papermc-repo"
         url = uri("https://papermc.io/repo/repository/maven-public/")
     }
+    maven { url = uri("https://repo.papermc.io/repository/maven-public/") }
     maven {
         name = "sonatype"
         url = uri("https://oss.sonatype.org/content/groups/public/")
@@ -48,11 +48,12 @@ repositories {
 
 dependencies {
     compileOnly("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
-    implementation(kotlin("stdlib-jdk8"))
     implementation(kotlin("reflect"))
     implementation ("com.google.code.gson:gson:2.10.1")
     implementation("org.expandt.eskywars.intake:intake-core:1.2-SNAPSHOT")
     implementation("org.expandt.eskywars.intake:intake-bukkit:1.2-SNAPSHOT")
+    implementation("org.expandt.eskywars:PacketWrapper")
+    implementation("org.expandt.eskywars:worldedit-bukkit-7.2.2-dist")
     compileOnly("net.luckperms:api:5.4")
     compileOnly("com.comphenix.protocol:ProtocolLib:5.1.0")
 }
